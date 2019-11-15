@@ -16,12 +16,21 @@ namespace OctokitBugRepro
             var client = new GitHubClient(productInformation);
             client.Credentials = new Credentials(token);
 
+            var options = new ApiOptions { PageSize = 100 };
+
             Console.WriteLine("Get teams...");
-            var allTeams = await client.Organization.Team.GetAll("dotnet");
+            var allTeams = await client.Organization.Team.GetAll("dotnet", options);
             var msTeam = allTeams.Single(t => string.Equals(t.Name, "Microsoft", StringComparison.OrdinalIgnoreCase));
 
+            // this is what we had set initially
+            // var filter = new TeamMembersRequest(TeamRoleFilter.Member);
+            // we could filter on maintainers here
+            // var filter = new TeamMembersRequest(TeamRoleFilter.Maintainer);
+            var filter = new TeamMembersRequest(TeamRoleFilter.All);
+
             Console.WriteLine("Get members...");
-            var members = await client.Organization.Team.GetAllMembers(msTeam.Id, new TeamMembersRequest(TeamRoleFilter.Member));
+            var members = await client.Organization.Team.GetAllMembers(msTeam.Id, filter, options);
+
             var logins = new SortedSet<string>(members.Select(m => m.Login));
             Console.WriteLine(logins.Count);
 
