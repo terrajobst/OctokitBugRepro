@@ -22,23 +22,45 @@ namespace OctokitBugRepro
             var allTeams = await client.Organization.Team.GetAll("dotnet", options);
             var msTeam = allTeams.Single(t => string.Equals(t.Name, "Microsoft", StringComparison.OrdinalIgnoreCase));
 
-            // this is what we had set initially
-            // var filter = new TeamMembersRequest(TeamRoleFilter.Member);
-            // we could filter on maintainers here
-            // var filter = new TeamMembersRequest(TeamRoleFilter.Maintainer);
-            var filter = new TeamMembersRequest(TeamRoleFilter.All);
+            async Task<SortedSet<string>> ListMembers(int teamId)
+            {
+                // this is what we had set initially
+                //var filter = new TeamMembersRequest(TeamRoleFilter.Member);
+                // we could filter on these categories too
+                // var filter = new TeamMembersRequest(TeamRoleFilter.Maintainer);
+                var filter = new TeamMembersRequest(TeamRoleFilter.All);
 
-            Console.WriteLine("Get members...");
-            var members = await client.Organization.Team.GetAllMembers(msTeam.Id, filter, options);
+                Console.WriteLine($"Get members for team {teamId}...");
+                var members = await client.Organization.Team.GetAllMembers(teamId, filter, options);
 
-            var logins = new SortedSet<string>(members.Select(m => m.Login));
-            Console.WriteLine(logins.Count);
+                var logins = new SortedSet<string>(members.Select(m => m.Login));
 
-            var folks = logins.Where(m => m.StartsWith("opb", StringComparison.OrdinalIgnoreCase))
+                Console.WriteLine($"Get child teams for {teamId}...");
+                var teams = await client.Organization.Team.GetAllChildTeams(teamId, options);
+                foreach (var team in teams)
+                {
+                    var nestedLogins = await ListMembers(team.Id);
+                    foreach (var login in nestedLogins)
+                    {
+                        logins.Add(login);
+                    }
+                }
+
+                Console.WriteLine();
+
+                return logins;
+            }
+
+            var recursiveLogins = await ListMembers(msTeam.Id);
+
+            Console.WriteLine(recursiveLogins.Count);
+
+            var folks = recursiveLogins.Where(m => m.StartsWith("opb", StringComparison.OrdinalIgnoreCase))
                               .ToArray();
 
             foreach (var f in folks)
                 Console.WriteLine(f);
+
 
             // prints:
             // 665
